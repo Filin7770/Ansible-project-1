@@ -1,0 +1,68 @@
+- name: My first play
+  hosts: myhosts
+  become: true
+  tasks:
+    - name: Ping my hosts
+      ansible.builtin.ping:
+
+    - name: Print message
+      ansible.builtin.debug:
+        msg: Hello world
+
+    - name: Update the repository cache and update package "nginx" to latest version using default release squeeze-backport
+      apt:
+        name: nginx
+        state: latest
+        update_cache: yes
+
+    - name: Install package acl  
+      apt:  
+        name: acl  
+        state: present  
+        update_cache: yes
+
+    - name: Install required Python packages
+      apt:
+        name: python3-psycopg2
+        state: present
+        update_cache: yes  
+    
+    - name: Install PostgreSQL
+      apt:
+        name: postgresql
+        state: latest
+        update_cache: yes
+
+    - name: Ensure PostgreSQL is running
+      ansible.builtin.service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Create PostgreSQL user 'admin'
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: admin
+        password: '1234'
+        role_attr_flags: LOGIN
+      ignore_errors: yes 
+
+    - name: Create PostgreSQL database 'url_shortener'
+      become_user: postgres
+      postgresql_db:
+        name: url_shortener
+        owner: admin
+      ignore_errors: yes
+
+    - name: Collect PostgreSQL version and roles information
+      become_user: postgres
+      community.postgresql.postgresql_info:
+        filter:
+          - version
+          - roles
+      register: pg_info
+
+    - name: Show PostgreSQL version and roles
+      debug:
+        var: pg_info
+
