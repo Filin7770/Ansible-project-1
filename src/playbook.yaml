@@ -1,0 +1,139 @@
+- name: My first play
+  hosts: myhosts
+  become: true
+  tasks:
+    - name: Ping my hosts
+      ansible.builtin.ping:
+
+    # Nginx
+    - name: Update the repository cache and update package "nginx" to latest version using default release squeeze-backport
+      apt:
+        name: nginx
+        state: latest
+        update_cache: yes
+
+    - name: Install package acl
+      apt:
+        name: acl
+        state: present
+        update_cache: yes
+
+    - name: Install required Python packages
+      apt:
+        name: python3-psycopg2
+        state: present
+        update_cache: yes
+
+    # OpenSSL
+    - name: Install OpenSSL
+      apt:
+        name: openssl
+        state: present
+        update_cache: yes
+
+    - name: Create directory for SSL certificates
+      ansible.builtin.file:
+        path: /etc/nginx/ssl
+        state: directory
+        mode: "0700"
+        owner: root
+        group: root
+
+    - name: Check if SSL certificate exists
+      ansible.builtin.stat:
+        path: /etc/nginx/ssl/server.crt
+      register: ssl_cert
+
+    - name: Generate self-signed SSL certificate
+      ansible.builtin.command: >
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 
+        -keyout /etc/nginx/ssl/server.key 
+        -out /etc/nginx/ssl/server.crt 
+        -subj "/C=RU/ST=State/L=City/O=Organization/OU=Unit/CN={{ ansible_host }}"
+      when: not ssl_cert.stat.exists
+
+    # PostgreSQL
+    - name: Install PostgreSQL
+      apt:
+        name: postgresql
+        state: latest
+        update_cache: yes
+
+    - name: Ensure PostgreSQL is running
+      ansible.builtin.service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Create PostgreSQL user 'admin'
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: admin
+        password: "1234"
+        role_attr_flags: LOGIN
+      ignore_errors: yes
+
+    - name: Create PostgreSQL database 'url_shortener'
+      become_user: postgres
+      postgresql_db:
+        name: url_shortener
+        owner: admin
+      ignore_errors: yes
+
+    - name: Collect PostgreSQL version and roles information
+      become_user: postgres
+      community.postgresql.postgresql_info:
+        filter:
+          - version
+          - roles
+      register: pg_info
+
+    - name: Show PostgreSQL version and roles
+      debug:
+        var: pg_info
+
+    - name: Copy the binary file to remote server
+      ansible.builtin.copy:
+        src: ./build/main # Путь к бинарному файлу на локальной машине
+        dest: /usr/local/bin/main # Путь на удалённой машине
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Copy the static file to remote server
+      ansible.builtin.copy:
+        src: ./front/index.html
+        dest: /var/www/url-shortener
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Remove default site from sites-enabled if exists
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Copy nginx config file to remote server
+      ansible.builtin.copy:
+        src: ./nginx/url-shortener.conf # Статический файл
+        dest: /etc/nginx/sites-available/url-shortener.conf
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Create symlink in sites-enabled for my_project
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/url-shortener.conf
+        dest: /etc/nginx/sites-enabled/url-shortener.conf
+        state: link
+
+    - name: Test Nginx config
+      ansible.builtin.command: nginx -t
+      register: nginx_test
+      failed_when: nginx_test.rc != 0
+      changed_when: false
+
+    - name: Reload Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded

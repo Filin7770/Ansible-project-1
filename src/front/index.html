@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Url-shortener</title>
+</head>
+<body>
+<h2>Hi</h2>
+<input type="text" id="urlInput" placeholder="Write URL"/>
+<button onclick="shortenUrl()">shorten</button>
+<p>Short URL: <a id="shortUrl" href="#" target="_blank"></a></p>
+
+<script>
+    async function shortenUrl() {
+        const longUrl = document.getElementById("urlInput").value;
+        const response = await fetch("/shorten", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({longUrl})
+        });
+
+        const result = await response.json();
+        console.log("--result---", result)
+        const shortUrlElement = document.getElementById("shortUrl");
+        if (result.shortUrl) {
+            shortUrlElement.href = result.shortUrl;  // Делаем ссылку кликабельной
+            shortUrlElement.innerText = result.shortUrl;  // Отображаем короткий URL
+        } else {
+            shortUrlElement.innerText = "Error!";
+            shortUrlElement.removeAttribute("href");  // Убираем ссылку, если ошибка
+        }
+    }
+</script>
+</body>
+</html>
