@@ -100,12 +100,20 @@
         group: root
         mode: "0755"
 
+    - name: Create directory for static file
+      ansible.builtin.file:
+        path: /var/www/url-shortener
+        state: directory
+        mode: "0755"
+        owner: www-data
+        group: www-data
+
     - name: Copy the static file to remote server
       ansible.builtin.copy:
         src: ./front/index.html
-        dest: /var/www/url-shortener
-        owner: root
-        group: root
+        dest: /var/www/url-shortener/index.html
+        owner: www-data
+        group: www-data
         mode: "0755"
 
     - name: Remove default site from sites-enabled if exists
@@ -132,6 +140,28 @@
       register: nginx_test
       failed_when: nginx_test.rc != 0
       changed_when: false
+
+    - name: Copy the unit file to remote server
+      ansible.builtin.copy:
+        src: ./nginx/url-shortener.service
+        dest: /etc/systemd/system/ 
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Reload systemd daemon to recognize new service
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: Enable url-shortener service
+      ansible.builtin.systemd:
+        name: url-shortener.service
+        enabled: yes
+
+    - name: Start url-shortener service
+      ansible.builtin.systemd:
+        name: url-shortener.service
+        state: started
 
     - name: Reload Nginx
       ansible.builtin.service:
