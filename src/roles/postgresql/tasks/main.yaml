@@ -1,0 +1,39 @@
+---
+  - name: Install PostgreSQL
+    apt:
+      name: postgresql
+      state: latest
+      update_cache: yes
+
+  - name: Ensure PostgreSQL is running
+    ansible.builtin.service:
+      name: postgresql
+      state: started
+      enabled: yes
+
+  - name: Create PostgreSQL user 'admin'
+    become_user: postgres
+    community.postgresql.postgresql_user:
+      name: "{{ pg_user }}"
+      password: "{{ pg_password }}"
+      role_attr_flags: LOGIN
+    ignore_errors: yes
+
+  - name: Create PostgreSQL database 'url_shortener'
+    become_user: postgres
+    postgresql_db:
+      name: url_shortener
+      owner: admin
+    ignore_errors: yes
+
+  - name: Collect PostgreSQL version and roles information
+    become_user: postgres
+    community.postgresql.postgresql_info:
+      filter:
+        - version
+        - roles
+    register: pg_info
+
+  - name: Show PostgreSQL version and roles
+    debug:
+      var: pg_info

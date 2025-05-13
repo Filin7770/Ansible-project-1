@@ -1,0 +1,63 @@
+---
+  - name: Update the repository cache and update package "nginx" to latest version using default release squeeze-backport
+    apt:
+      name: nginx
+      state: latest
+      update_cache: yes  
+  
+  - name: Install OpenSSL
+    apt:
+      name: openssl
+      state: present
+      update_cache: yes
+
+  - name: Create directory for SSL certificates
+    ansible.builtin.file:
+      path: /etc/nginx/ssl
+      state: directory
+      mode: "0700"
+      owner: root
+      group: root
+
+  - name: Check if SSL certificate exists
+    ansible.builtin.stat:
+      path: /etc/nginx/ssl/server.crt
+    register: ssl_cert
+
+  - name: Generate self-signed SSL certificate
+    ansible.builtin.command: >
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048 
+      -keyout /etc/nginx/ssl/server.key 
+      -out /etc/nginx/ssl/server.crt 
+      -subj "/C=RU/ST=State/L=City/O=Organization/OU=Unit/CN={{ ansible_host }}"
+    when: not ssl_cert.stat.exists
+
+  - name: Remove default site from sites-enabled if exists
+    ansible.builtin.file:
+      path: /etc/nginx/sites-enabled/default
+      state: absent
+
+  - name: Copy nginx config file to remote server
+    ansible.builtin.copy:
+      src: ./files/url-shortener.conf # Статический файл
+      dest: /etc/nginx/sites-available/url-shortener.conf
+      owner: root
+      group: root
+      mode: "0644"
+
+  - name: Create symlink in sites-enabled for my_project
+    ansible.builtin.file:
+      src: /etc/nginx/sites-available/url-shortener.conf
+      dest: /etc/nginx/sites-enabled/url-shortener.conf
+      state: link
+
+  - name: Test Nginx config
+    ansible.builtin.command: nginx -t
+    register: nginx_test
+    failed_when: nginx_test.rc != 0
+    changed_when: false
+  
+  - name: Reload Nginx
+    ansible.builtin.service:
+      name: nginx
+      state: reloaded

@@ -1,0 +1,54 @@
+---
+- name: Copy the binary file to remote server
+  ansible.builtin.copy:
+    src: ./files/main
+    dest: /usr/local/bin/main
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create directory for static file
+  ansible.builtin.file:
+    path: /var/www/url-shortener
+    state: directory
+    mode: "0755"
+    owner: www-data
+    group: www-data
+
+- name: Copy the static file to remote server
+  ansible.builtin.copy:
+    src: ./files/index.html
+    dest: /var/www/url-shortener/index.html
+    owner: www-data
+    group: www-data
+    mode: "0755"
+
+- name: Copy the unit file to remote server
+  ansible.builtin.copy:
+    src: ./files/url-shortener.service
+    dest: /etc/systemd/system/url-shortener.service
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Reload systemd daemon to recognize new service
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Enable url-shortener service
+  ansible.builtin.systemd:
+    name: url-shortener.service
+    enabled: yes
+
+- name: Start url-shortener service
+  ansible.builtin.systemd:
+    name: url-shortener.service
+    state: started
+
+- name: Check if url-shortener service is running
+  ansible.builtin.systemd:
+    name: url-shortener.service
+    state: started
+  check_mode: no
+  register: service_status
+  failed_when: service_status.state != 'started'
