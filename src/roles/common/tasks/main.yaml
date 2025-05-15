@@ -1,7 +1,4 @@
 ---
-  - name: Ping my hosts
-    ansible.builtin.ping:
-  
   - name: Install package acl
     apt:
       name: acl
