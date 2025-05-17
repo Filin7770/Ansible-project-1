@@ -5,6 +5,3 @@ all:
       hosts:
         192.168.56.10:
           ansible_user: vagrant
-          nginx_config:
-            server_name: "localhost 1337.ru 192.168.56.10"
-            api_port: 8080

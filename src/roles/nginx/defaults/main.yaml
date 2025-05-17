@@ -1,0 +1,10 @@
+---
+nginx_config:
+  http_port: 80
+  https_port: 443
+  server_name: "localhost 1337.ru 192.168.56.10"
+  ssl_cert_path: "/etc/nginx/ssl/server.crt"
+  ssl_key_path: "/etc/nginx/ssl/server.key"
+  web_root: "/var/www/url-shortener"
+  proxy_host: "localhost"
+  api_port: 8080
