@@ -30,20 +30,14 @@
     owner: root
     group: root
     mode: "0755"
-
-- name: Reload systemd daemon to recognize new service
-  ansible.builtin.systemd:
-    daemon_reload: yes
+  notify:
+    - Reload systemd daemon
+    - Start url-shortener service
 
 - name: Enable url-shortener service
   ansible.builtin.systemd:
     name: url-shortener.service
     enabled: yes
-
-- name: Start url-shortener service
-  ansible.builtin.systemd:
-    name: url-shortener.service
-    state: started
 
 - name: Check if url-shortener service is running
   ansible.builtin.systemd:

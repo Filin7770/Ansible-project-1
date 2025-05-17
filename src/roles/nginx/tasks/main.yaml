@@ -1,63 +1,110 @@
 ---
-  - name: Update the repository cache and update package "nginx" to latest version using default release squeeze-backport
-    apt:
-      name: nginx
-      state: latest
-      update_cache: yes  
-  
-  - name: Install OpenSSL
-    apt:
-      name: openssl
-      state: present
-      update_cache: yes
+- name: Update the repository cache and install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: latest
+    update_cache: yes
+  become: yes
 
-  - name: Create directory for SSL certificates
-    ansible.builtin.file:
-      path: /etc/nginx/ssl
-      state: directory
-      mode: "0700"
-      owner: root
-      group: root
+- name: Install OpenSSL
+  ansible.builtin.apt:
+    name: openssl
+    state: present
+    update_cache: yes
+  become: yes
 
-  - name: Check if SSL certificate exists
-    ansible.builtin.stat:
-      path: /etc/nginx/ssl/server.crt
-    register: ssl_cert
+- name: Create directory for SSL certificates
+  ansible.builtin.file:
+    path: /etc/nginx/ssl
+    state: directory
+    mode: "0700"
+    owner: root
+    group: root
+  become: yes
 
-  - name: Generate self-signed SSL certificate
-    ansible.builtin.command: >
-      openssl req -x509 -nodes -days 365 -newkey rsa:2048 
-      -keyout /etc/nginx/ssl/server.key 
-      -out /etc/nginx/ssl/server.crt 
-      -subj "/C=RU/ST=State/L=City/O=Organization/OU=Unit/CN={{ ansible_host }}"
-    when: not ssl_cert.stat.exists
+- name: Check if SSL certificate exists
+  ansible.builtin.stat:
+    path: "{{ nginx_config.ssl_cert_path }}"
+  register: ssl_cert
 
-  - name: Remove default site from sites-enabled if exists
-    ansible.builtin.file:
-      path: /etc/nginx/sites-enabled/default
-      state: absent
+- name: Generate private key for SSL certificate
+  ansible.builtin.openssl_privatekey:
+    path: "{{ nginx_config.ssl_key_path }}"
+    size: 2048
+    type: RSA
+    mode: "0600"
+  when: not ssl_cert.stat.exists
+  become: yes
+  notify: Reload nginx
 
-  - name: Copy nginx config file to remote server
-    ansible.builtin.copy:
-      src: ./files/url-shortener.conf # Статический файл
-      dest: /etc/nginx/sites-available/url-shortener.conf
-      owner: root
-      group: root
-      mode: "0644"
+- name: Generate CSR for SSL certificate
+  ansible.builtin.openssl_csr:
+    path: /tmp/nginx.csr
+    privatekey_path: "{{ nginx_config.ssl_key_path }}"
+    country_name: "RU"
+    state_or_province_name: "State"
+    locality_name: "City"
+    organization_name: "Organization"
+    organizational_unit_name: "Unit"
+    common_name: "{{ ansible_host }}"
+  when: not ssl_cert.stat.exists
+  become: yes
 
-  - name: Create symlink in sites-enabled for my_project
-    ansible.builtin.file:
-      src: /etc/nginx/sites-available/url-shortener.conf
-      dest: /etc/nginx/sites-enabled/url-shortener.conf
-      state: link
+- name: Generate self-signed SSL certificate
+  ansible.builtin.openssl_certificate:
+    path: "{{ nginx_config.ssl_cert_path }}"
+    privatekey_path: "{{ nginx_config.ssl_key_path }}"
+    csr_path: /tmp/nginx.csr
+    provider: selfsigned
+    selfsigned_not_after: "+365d"
+    mode: "0644"
+  when: not ssl_cert.stat.exists
+  become: yes
+  notify: Reload nginx
 
-  - name: Test Nginx config
-    ansible.builtin.command: nginx -t
-    register: nginx_test
-    failed_when: nginx_test.rc != 0
-    changed_when: false
-  
-  - name: Reload Nginx
-    ansible.builtin.service:
-      name: nginx
-      state: reloaded
+- name: Remove temporary CSR file
+  ansible.builtin.file:
+    path: /tmp/nginx.csr
+    state: absent
+  when: not ssl_cert.stat.exists
+  become: yes
+
+- name: Remove default site from sites-enabled if exists
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  become: yes
+  notify: Reload nginx
+
+- name: Deploy nginx configuration from template
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/sites-available/url-shortener.conf
+    owner: root
+    group: root
+    mode: "0644"
+  become: yes
+  notify: Reload nginx
+
+- name: Create symlink in sites-enabled for url-shortener
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/url-shortener.conf
+    dest: /etc/nginx/sites-enabled/url-shortener.conf
+    state: link
+  become: yes
+  notify: Reload nginx
+
+- name: Test full Nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  register: nginx_test
+  failed_when: nginx_test.rc != 0
+  changed_when: false
+  become: yes
+
+- name: Ensure nginx is running
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: yes
+  become: yes

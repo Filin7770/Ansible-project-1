@@ -1,0 +1,9 @@
+---
+  - name: Reload systemd daemon
+    ansible.builtin.systemd:
+      daemon_reload: yes  
+
+  - name: Start url-shortener service
+    ansible.builtin.systemd:
+      name: url-shortener.service
+      state: started
