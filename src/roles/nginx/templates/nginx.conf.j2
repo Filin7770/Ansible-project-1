@@ -1,0 +1,37 @@
+server {
+    listen {{ nginx_config.http_port }};
+    server_name {{ nginx_config.server_name }};
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen {{ nginx_config.https_port }} ssl;
+    server_name {{ nginx_config.server_name }};
+
+    ssl_certificate {{ nginx_config.ssl_cert_path }};
+    ssl_certificate_key {{ nginx_config.ssl_key_path }};
+
+    location / {
+        root {{ nginx_config.web_root }};
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Проксирование API
+    location /shorten {
+        proxy_pass http://{{ nginx_config.proxy_host }}:{{ nginx_config.api_port }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Проксирование редиректов для коротких URL
+    location /r/ {
+        proxy_pass http://{{ nginx_config.proxy_host }}:{{ nginx_config.api_port }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
