@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/main
+ExecStart=/usr/local/bin/url-shortener
 Restart=always
 StandardOutput=journal
 StandardError=journal
