@@ -1,0 +1,28 @@
+- name: Install MariaDB server and client
+  ansible.builtin.apt:
+    name:
+      - mariadb-server
+      - mariadb-client
+      - python3-pymysql
+    state: present
+    update_cache: yes
+
+- name: Start and enable MariaDB service
+  ansible.builtin.systemd:
+    name: mariadb
+    state: started
+    enabled: yes
+
+- name: Create WordPress database
+  community.mysql.mysql_db:
+    name: wordpress
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+
+- name: Create WordPress database user
+  community.mysql.mysql_user:
+    name: "{{ wordpress_db_user }}"
+    password: "{{ wordpress_db_password }}"
+    priv: "wordpress.*:ALL"
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock

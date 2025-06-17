@@ -8,5 +8,7 @@
   roles:
     - common
     - nginx
+    - mysql
     - postgresql
     - app
+    - wordpress
