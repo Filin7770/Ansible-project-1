@@ -22,51 +22,100 @@
     group: root
   become: yes
 
-- name: Check if SSL certificate exists
+# Сертификаты для url-shortener
+- name: Check if SSL certificate for url-shortener exists
   ansible.builtin.stat:
-    path: "{{ nginx_config.ssl_cert_path }}"
-  register: ssl_cert
+    path: "{{ nginx_config.url_shortener_ssl_cert_path }}"
+  register: url_shortener_ssl_cert
 
-- name: Generate private key for SSL certificate
+- name: Generate private key for url-shortener SSL certificate
   ansible.builtin.openssl_privatekey:
-    path: "{{ nginx_config.ssl_key_path }}"
+    path: "{{ nginx_config.url_shortener_ssl_key_path }}"
     size: 2048
     type: RSA
     mode: "0600"
-  when: not ssl_cert.stat.exists
+  when: not url_shortener_ssl_cert.stat.exists
   become: yes
   notify: Reload nginx
 
-- name: Generate CSR for SSL certificate
+- name: Generate CSR for url-shortener SSL certificate
   ansible.builtin.openssl_csr:
-    path: /tmp/nginx.csr
-    privatekey_path: "{{ nginx_config.ssl_key_path }}"
+    path: /tmp/url-shortener.csr
+    privatekey_path: "{{ nginx_config.url_shortener_ssl_key_path }}"
     country_name: "RU"
     state_or_province_name: "State"
     locality_name: "City"
     organization_name: "Organization"
     organizational_unit_name: "Unit"
-    common_name: "{{ ansible_host }}"
-  when: not ssl_cert.stat.exists
+    common_name: "{{ nginx_config.url_shortener_server_name.split()[0] }}"
+  when: not url_shortener_ssl_cert.stat.exists
   become: yes
 
-- name: Generate self-signed SSL certificate
+- name: Generate self-signed SSL certificate for url-shortener
   ansible.builtin.openssl_certificate:
-    path: "{{ nginx_config.ssl_cert_path }}"
-    privatekey_path: "{{ nginx_config.ssl_key_path }}"
-    csr_path: /tmp/nginx.csr
+    path: "{{ nginx_config.url_shortener_ssl_cert_path }}"
+    privatekey_path: "{{ nginx_config.url_shortener_ssl_key_path }}"
+    csr_path: /tmp/url-shortener.csr
     provider: selfsigned
     selfsigned_not_after: "+365d"
     mode: "0644"
-  when: not ssl_cert.stat.exists
+  when: not url_shortener_ssl_cert.stat.exists
   become: yes
   notify: Reload nginx
 
-- name: Remove temporary CSR file
+- name: Remove temporary CSR file for url-shortener
   ansible.builtin.file:
-    path: /tmp/nginx.csr
+    path: /tmp/url-shortener.csr
     state: absent
-  when: not ssl_cert.stat.exists
+  when: not url_shortener_ssl_cert.stat.exists
+  become: yes
+
+# Сертификаты для WordPress
+- name: Check if SSL certificate for WordPress exists
+  ansible.builtin.stat:
+    path: "{{ nginx_config.wordpress_ssl_cert_path }}"
+  register: wordpress_ssl_cert
+
+- name: Generate private key for WordPress SSL certificate
+  ansible.builtin.openssl_privatekey:
+    path: "{{ nginx_config.wordpress_ssl_key_path }}"
+    size: 2048
+    type: RSA
+    mode: "0600"
+  when: not wordpress_ssl_cert.stat.exists
+  become: yes
+  notify: Reload nginx
+
+- name: Generate CSR for WordPress SSL certificate
+  ansible.builtin.openssl_csr:
+    path: /tmp/wordpress.csr
+    privatekey_path: "{{ nginx_config.wordpress_ssl_key_path }}"
+    country_name: "RU"
+    state_or_province_name: "State"
+    locality_name: "City"
+    organization_name: "Organization"
+    organizational_unit_name: "Unit"
+    common_name: "{{ nginx_config.wordpress_server_name }}"
+  when: not wordpress_ssl_cert.stat.exists
+  become: yes
+
+- name: Generate self-signed SSL certificate for WordPress
+  ansible.builtin.openssl_certificate:
+    path: "{{ nginx_config.wordpress_ssl_cert_path }}"
+    privatekey_path: "{{ nginx_config.wordpress_ssl_key_path }}"
+    csr_path: /tmp/wordpress.csr
+    provider: selfsigned
+    selfsigned_not_after: "+365d"
+    mode: "0644"
+  when: not wordpress_ssl_cert.stat.exists
+  become: yes
+  notify: Reload nginx
+
+- name: Remove temporary CSR file for WordPress
+  ansible.builtin.file:
+    path: /tmp/wordpress.csr
+    state: absent
+  when: not wordpress_ssl_cert.stat.exists
   become: yes
 
 - name: Remove default site from sites-enabled if exists
@@ -93,6 +142,16 @@
     state: link
   become: yes
   notify: Reload nginx
+
+- name: Add domains to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ item }}"
+    state: present
+  loop:
+    - "192.168.56.10 221337.ru"
+    - "192.168.56.10 17228.ru"
+  become: yes
 
 - name: Test full Nginx configuration
   ansible.builtin.command:

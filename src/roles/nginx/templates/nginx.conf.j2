@@ -1,19 +1,21 @@
+# Сервер для url-shortener (HTTP -> HTTPS redirect)
 server {
     listen {{ nginx_config.http_port }};
-    server_name {{ nginx_config.server_name }};
+    server_name {{ nginx_config.url_shortener_server_name }};
 
     return 301 https://$host$request_uri;
 }
 
+# Сервер для url-shortener (HTTPS)
 server {
     listen {{ nginx_config.https_port }} ssl;
-    server_name {{ nginx_config.server_name }};
+    server_name {{ nginx_config.url_shortener_server_name }};
 
-    ssl_certificate {{ nginx_config.ssl_cert_path }};
-    ssl_certificate_key {{ nginx_config.ssl_key_path }};
+    ssl_certificate {{ nginx_config.url_shortener_ssl_cert_path }};
+    ssl_certificate_key {{ nginx_config.url_shortener_ssl_key_path }};
 
     location / {
-        root {{ nginx_config.web_root }};
+        root {{ nginx_config.url_shortener_web_root }};
         try_files $uri $uri/ /index.html;
     }
 
@@ -33,5 +35,40 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# Сервер для WordPress (HTTP -> HTTPS redirect)
+server {
+    listen {{ nginx_config.http_port }};
+    server_name {{ nginx_config.wordpress_server_name }};
+
+    return 301 https://$host$request_uri;
+}
+
+# Сервер для WordPress (HTTPS)
+server {
+    listen {{ nginx_config.https_port }} ssl;
+    server_name {{ nginx_config.wordpress_server_name }};
+
+    ssl_certificate {{ nginx_config.wordpress_ssl_cert_path }};
+    ssl_certificate_key {{ nginx_config.wordpress_ssl_key_path }};
+
+    root {{ nginx_config.wordpress_web_root }};
+    index index.php index.html index.htm;
+
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.ht {
+        deny all;
     }
 }

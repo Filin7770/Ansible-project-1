@@ -1,0 +1,50 @@
+- name: Install PHP and required extensions
+  ansible.builtin.apt:
+    name:
+      - php
+      - php-fpm
+      - php-mysql
+      - php-curl
+      - php-gd
+      - php-mbstring
+      - php-xml
+      - php-xmlrpc
+      - php-soap
+      - php-intl
+      - php-zip
+    state: present
+    update_cache: yes
+
+- name: Create directory for WordPress
+  ansible.builtin.file:
+    path: /var/www/wordpress
+    state: directory
+    mode: "0755"
+    owner: www-data
+    group: www-data
+
+- name: Download and extract WordPress
+  ansible.builtin.unarchive:
+    src: https://wordpress.org/latest.tar.gz
+    dest: /var/www/wordpress
+    remote_src: yes
+    extra_opts: [--strip-components=1]
+    owner: www-data
+    group: www-data
+
+- name: Copy WordPress configuration file
+  ansible.builtin.template:
+    src: wp-config.php.j2
+    dest: /var/www/wordpress/wp-config.php
+    owner: www-data
+    group: www-data
+    mode: "0640"
+
+- name: Set permissions for WordPress files
+  ansible.builtin.file:
+    path: /var/www/wordpress
+    state: directory
+    recurse: yes
+    owner: www-data
+    group: www-data
+    mode: "0755"
